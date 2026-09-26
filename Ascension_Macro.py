@@ -1,6 +1,10 @@
+import os
+import subprocess
 import time
+import winreg
+from urllib.parse import parse_qs, urlparse
+
 import requests
-import webbrowser
 import keyboard
 import argparse
 import sys
@@ -41,9 +45,44 @@ def get_presence(user_id: int):
 
     return info["userPresenceType"]
 
+def find_roblox_player() -> str:
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Classes\roblox\shell\open\command",
+        ) as key:
+            command, _ = winreg.QueryValueEx(key, "")
+        if command.startswith('"'):
+            exe = command.split('"')[1]
+        else:
+            exe = command.split()[0]
+        if os.path.isfile(exe) and os.path.basename(exe).lower() == "robloxplayerbeta.exe":
+            return exe
+    except OSError:
+        pass
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    versions = os.path.join(local_app_data or "", "Roblox", "Versions")
+    candidates = []
+    if os.path.isdir(versions):
+        for name in os.listdir(versions):
+            exe = os.path.join(versions, name, "RobloxPlayerBeta.exe")
+            if os.path.isfile(exe):
+                candidates.append(exe)
+    if not candidates:
+        raise FileNotFoundError("RobloxPlayerBeta.exe not found")
+    return max(candidates, key=os.path.getmtime)
+
 def rejoin_server():
-    print("Opening private server link...")
-    webbrowser.open(PRIVATE_SERVER_URL)
+    query = parse_qs(urlparse(PRIVATE_SERVER_URL).query)
+    code = query.get("code", [None])[0]
+    if not code:
+        raise ValueError(f"No share code in private server URL: {PRIVATE_SERVER_URL}")
+
+    deeplink = f"roblox://navigation/share_links?code={code}&type=Server"
+    exe = find_roblox_player()
+    print(f"Launching Roblox player: {exe}")
+    subprocess.Popen([exe, deeplink])
     time.sleep(REJOIN_INTERVAL)
 
 def main():
