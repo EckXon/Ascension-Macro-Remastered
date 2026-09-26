@@ -1,4 +1,6 @@
+import json
 import os
+import shutil
 import subprocess
 import time
 import winreg
@@ -9,13 +11,63 @@ import keyboard
 import argparse
 import sys
 
-#-CONFIGURATION-#
-USER_ID = 4348247182  # target Roblox user ID
-PRIVATE_SERVER_URL = None # private server URL from roblox.com/games/PLACE_ID/... ;
-PLACE_ID = 110806816173057  # place ID from roblox.com/games/PLACE_ID/... ; used when PRIVATE_SERVER_URL is empty
-CHECK_INTERVAL = 5  # seconds
-REJOIN_INTERVAL = 120  # seconds
-#---------------#
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
+EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
+
+def load_config():
+    if not os.path.isfile(CONFIG_PATH):
+        if not os.path.isfile(EXAMPLE_CONFIG_PATH):
+            raise FileNotFoundError(
+                f"Missing {EXAMPLE_CONFIG_PATH}. Cannot create {CONFIG_PATH}."
+            )
+        shutil.copyfile(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
+
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in {CONFIG_PATH}: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError(f"{CONFIG_PATH} must contain a JSON object")
+
+    required = (
+        "user_id",
+        "private_server_url",
+        "place_id",
+        "check_interval",
+        "rejoin_interval",
+    )
+    missing = [key for key in required if key not in data]
+    if missing:
+        raise KeyError(f"Missing keys in {CONFIG_PATH}: {', '.join(missing)}")
+
+    def as_int(value, name):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{name} in {CONFIG_PATH} must be an integer")
+        return value
+
+    def as_number(value, name):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{name} in {CONFIG_PATH} must be a number")
+        return value
+
+    private_server_url = data["private_server_url"]
+    if private_server_url is not None and not isinstance(private_server_url, str):
+        raise TypeError(
+            f"private_server_url in {CONFIG_PATH} must be a string or null"
+        )
+
+    return (
+        as_int(data["user_id"], "user_id"),
+        private_server_url,
+        as_int(data["place_id"], "place_id"),
+        as_number(data["check_interval"], "check_interval"),
+        as_number(data["rejoin_interval"], "rejoin_interval"),
+    )
+
+USER_ID, PRIVATE_SERVER_URL, PLACE_ID, CHECK_INTERVAL, REJOIN_INTERVAL = load_config()
 
 running = True
 alive = True
