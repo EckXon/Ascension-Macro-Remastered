@@ -11,7 +11,8 @@ import sys
 
 #-CONFIGURATION-#
 USER_ID = 4348247182  # target Roblox user ID
-PRIVATE_SERVER_URL = "https://www.roblox.com/share?code=029858a0f353be4f91e4e373b47da33b&type=Server"
+PRIVATE_SERVER_URL = None # private server URL from roblox.com/games/PLACE_ID/... ;
+PLACE_ID = 110806816173057  # place ID from roblox.com/games/PLACE_ID/... ; used when PRIVATE_SERVER_URL is empty
 CHECK_INTERVAL = 5  # seconds
 REJOIN_INTERVAL = 120  # seconds
 #---------------#
@@ -74,12 +75,17 @@ def find_roblox_player() -> str:
     return max(candidates, key=os.path.getmtime)
 
 def rejoin_server():
-    query = parse_qs(urlparse(PRIVATE_SERVER_URL).query)
-    code = query.get("code", [None])[0]
-    if not code:
-        raise ValueError(f"No share code in private server URL: {PRIVATE_SERVER_URL}")
+    if PRIVATE_SERVER_URL:
+        query = parse_qs(urlparse(PRIVATE_SERVER_URL).query)
+        code = query.get("code", [None])[0]
+        if not code:
+            raise ValueError(f"No share code in private server URL: {PRIVATE_SERVER_URL}")
+        deeplink = f"roblox://navigation/share_links?code={code}&type=Server"
+    elif PLACE_ID:
+        deeplink = f"roblox://experiences/start?placeId={PLACE_ID}"
+    else:
+        raise ValueError("Set PRIVATE_SERVER_URL or PLACE_ID")
 
-    deeplink = f"roblox://navigation/share_links?code={code}&type=Server"
     exe = find_roblox_player()
     print(f"Launching Roblox player: {exe}")
     subprocess.Popen([exe, deeplink])
