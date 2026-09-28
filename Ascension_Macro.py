@@ -126,6 +126,9 @@ def find_roblox_player() -> str:
         raise FileNotFoundError("RobloxPlayerBeta.exe not found")
     return max(candidates, key=os.path.getmtime)
 
+ROBLOX_PLAYER = find_roblox_player()
+print(f"Found Roblox player at: {ROBLOX_PLAYER}")
+
 def rejoin_server():
     if PRIVATE_SERVER_URL:
         query = parse_qs(urlparse(PRIVATE_SERVER_URL).query)
@@ -138,9 +141,7 @@ def rejoin_server():
     else:
         raise ValueError("Set PRIVATE_SERVER_URL or PLACE_ID")
 
-    exe = find_roblox_player()
-    print(f"Launching Roblox player: {exe}")
-    subprocess.Popen([exe, deeplink])
+    subprocess.Popen([ROBLOX_PLAYER, deeplink])
     time.sleep(REJOIN_INTERVAL)
 
 def main():
