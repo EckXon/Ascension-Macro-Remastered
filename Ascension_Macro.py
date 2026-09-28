@@ -11,9 +11,37 @@ import keyboard
 import argparse
 import sys
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def app_dir():
+    """Folder for files the user edits, next to the EXE when frozen."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def bundle_dir():
+    """Folder that contains bundled read-only data such as the example config."""
+    if getattr(sys, "frozen", False):
+        return getattr(sys, "_MEIPASS", app_dir())
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _frozen_excepthook(exc_type, exc, tb):
+    import traceback
+
+    traceback.print_exception(exc_type, exc, tb)
+    if getattr(sys, "frozen", False) and not issubclass(exc_type, KeyboardInterrupt):
+        try:
+            input("Press Enter to close...")
+        except EOFError:
+            pass
+
+
+sys.excepthook = _frozen_excepthook
+
+SCRIPT_DIR = app_dir()
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
-EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
+EXAMPLE_CONFIG_PATH = os.path.join(bundle_dir(), "config.example.json")
 
 def load_config():
     if not os.path.isfile(CONFIG_PATH):
@@ -21,7 +49,7 @@ def load_config():
             raise FileNotFoundError(
                 f"Missing {EXAMPLE_CONFIG_PATH}. Cannot create {CONFIG_PATH}."
             )
-        shutil.copyfile(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
+        #shutil.copyfile(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
 
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
