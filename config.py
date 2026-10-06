@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import sys
 import winreg
 
@@ -12,34 +11,26 @@ def app_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def bundle_dir():
-    """Folder that contains bundled read-only data such as the example config."""
-    if getattr(sys, "frozen", False):
-        return getattr(sys, "_MEIPASS", app_dir())
-    return os.path.dirname(os.path.abspath(__file__))
-
-
 SCRIPT_DIR = app_dir()
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
-EXAMPLE_CONFIG_PATH = os.path.join(bundle_dir(), "config.example.json")
+EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
 
-CONFIG_KEYS = (
-    "user_id",
-    "private_server_url",
-    "place_id",
-    "check_interval",
-    "rejoin_interval",
-)
+CONFIG_KEYS = {
+    "user_id": None,
+    "private_server_url": None,
+    "place_id": None,
+    "check_interval": 5,
+    "rejoin_interval": 120,
+}
 
 
 def _ensure_config_file():
     if os.path.isfile(CONFIG_PATH):
         return
-    if not os.path.isfile(EXAMPLE_CONFIG_PATH):
-        raise FileNotFoundError(
-            f"Missing {EXAMPLE_CONFIG_PATH}. Cannot create {CONFIG_PATH}."
-        )
-    shutil.copyfile(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
+
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(CONFIG_KEYS, f, indent=2)
+        f.write("\n")
 
 
 def _read_raw():

@@ -9,7 +9,7 @@ a = Analysis(
     ['Ascension_Macro.py'],
     pathex=[],
     binaries=[],
-    datas=[('config.example.json', '.')],
+    datas=[],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
