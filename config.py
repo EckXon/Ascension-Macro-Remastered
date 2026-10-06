@@ -23,15 +23,27 @@ SCRIPT_DIR = app_dir()
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 EXAMPLE_CONFIG_PATH = os.path.join(bundle_dir(), "config.example.json")
 
+CONFIG_KEYS = (
+    "user_id",
+    "private_server_url",
+    "place_id",
+    "check_interval",
+    "rejoin_interval",
+)
 
-def load_config():
-    if not os.path.isfile(CONFIG_PATH):
-        if not os.path.isfile(EXAMPLE_CONFIG_PATH):
-            raise FileNotFoundError(
-                f"Missing {EXAMPLE_CONFIG_PATH}. Cannot create {CONFIG_PATH}."
-            )
-        #shutil.copyfile(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
 
+def _ensure_config_file():
+    if os.path.isfile(CONFIG_PATH):
+        return
+    if not os.path.isfile(EXAMPLE_CONFIG_PATH):
+        raise FileNotFoundError(
+            f"Missing {EXAMPLE_CONFIG_PATH}. Cannot create {CONFIG_PATH}."
+        )
+    shutil.copyfile(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
+
+
+def _read_raw():
+    _ensure_config_file()
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
             data = json.load(f)
@@ -41,40 +53,89 @@ def load_config():
     if not isinstance(data, dict):
         raise ValueError(f"{CONFIG_PATH} must contain a JSON object")
 
-    required = (
-        "user_id",
-        "private_server_url",
-        "place_id",
-        "check_interval",
-        "rejoin_interval",
-    )
-    missing = [key for key in required if key not in data]
+    missing = [key for key in CONFIG_KEYS if key not in data]
     if missing:
         raise KeyError(f"Missing keys in {CONFIG_PATH}: {', '.join(missing)}")
+    return data
 
-    def as_int(value, name):
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError(f"{name} in {CONFIG_PATH} must be an integer")
-        return value
 
-    def as_number(value, name):
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise TypeError(f"{name} in {CONFIG_PATH} must be a number")
-        return value
+def read_config():
+    data = _read_raw()
+    return {key: data[key] for key in CONFIG_KEYS}
 
-    private_server_url = data["private_server_url"]
+
+def write_config(data):
+    if not isinstance(data, dict):
+        raise TypeError("config data must be a dict")
+    missing = [key for key in CONFIG_KEYS if key not in data]
+    if missing:
+        raise KeyError(f"Missing keys to write: {', '.join(missing)}")
+    payload = {key: data[key] for key in CONFIG_KEYS}
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+        f.write("\n")
+
+
+def _as_int(value, name):
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} in {CONFIG_PATH} must be an integer")
+    return value
+
+
+def _as_number(value, name):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{name} in {CONFIG_PATH} must be a number")
+    return value
+
+
+def settings_for_run(data):
+    if not isinstance(data, dict):
+        raise TypeError("config data must be a dict")
+
+    user_id = data.get("user_id")
+    if user_id is None:
+        raise ValueError("user_id is required")
+    user_id = _as_int(user_id, "user_id")
+
+    private_server_url = data.get("private_server_url")
     if private_server_url is not None and not isinstance(private_server_url, str):
         raise TypeError(
             f"private_server_url in {CONFIG_PATH} must be a string or null"
         )
+    if isinstance(private_server_url, str):
+        private_server_url = private_server_url.strip() or None
 
+    place_id = data.get("place_id")
+    if place_id is not None:
+        place_id = _as_int(place_id, "place_id")
+
+    if not private_server_url and not place_id:
+        raise ValueError("Set PRIVATE_SERVER_URL or PLACE_ID")
+
+    check_interval = _as_number(data.get("check_interval"), "check_interval")
+    rejoin_interval = _as_number(data.get("rejoin_interval"), "rejoin_interval")
+    if check_interval <= 0 or rejoin_interval <= 0:
+        raise ValueError("check_interval and rejoin_interval must be greater than 0")
+
+    return {
+        "user_id": user_id,
+        "private_server_url": private_server_url,
+        "place_id": place_id,
+        "check_interval": check_interval,
+        "rejoin_interval": rejoin_interval,
+    }
+
+
+def load_config():
+    settings = settings_for_run(read_config())
     return (
-        as_int(data["user_id"], "user_id"),
-        private_server_url,
-        as_int(data["place_id"], "place_id"),
-        as_number(data["check_interval"], "check_interval"),
-        as_number(data["rejoin_interval"], "rejoin_interval"),
+        settings["user_id"],
+        settings["private_server_url"],
+        settings["place_id"],
+        settings["check_interval"],
+        settings["rejoin_interval"],
     )
+
 
 def find_roblox_player() -> str:
     try:
