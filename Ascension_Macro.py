@@ -2,12 +2,15 @@ import argparse
 import subprocess
 import sys
 import threading
+import time
 from urllib.parse import parse_qs, urlparse
 
 import keyboard
 import requests
 
 import config
+import input_control
+import join_sequence
 from gui import MacroApp
 
 
@@ -77,6 +80,8 @@ class MacroRunner:
             self._log("Setting up debug hotkeys...")
             self._hotkeys.append(keyboard.add_hotkey("F1", self.debug_rejoin))
             self._hotkeys.append(keyboard.add_hotkey("F2", self.debug_presence))
+            self._hotkeys.append(keyboard.add_hotkey("F3", self.debug_cursor))
+            self._hotkeys.append(keyboard.add_hotkey("F4", self.debug_click))
         self._hotkeys.append(keyboard.add_hotkey("F8", self.stop))
         self._hotkeys.append(keyboard.add_hotkey("F9", on_force_exit))
 
@@ -108,6 +113,18 @@ class MacroRunner:
             self._log(f"Error: {exc}")
             return
         self._log(f"Checked presence for user {user_id}: {presence}")
+
+    def debug_cursor(self):
+        try:
+            position = input_control.cursor_client_position()
+        except Exception as exc:
+            self._log(f"Error: {exc}")
+            return
+        if position is None:
+            self._log("Roblox window is not open.")
+            return
+        x, y = position
+        self._log(f"Cursor in Roblox client: {x}, {y}")
 
     def _fetch_presence(self, user_id):
         url = "https://presence.roblox.com/v1/presence/users"
@@ -141,9 +158,20 @@ class MacroRunner:
             raise ValueError("Set PRIVATE_SERVER_URL or PLACE_ID")
 
         self._log(f"Launching Roblox: {deeplink}")
+        started = time.monotonic()
         subprocess.Popen([self._roblox_path, deeplink])
-        self._log(f"Waiting {rejoin_interval} seconds before the next check.")
-        self._stop.wait(rejoin_interval)
+        try:
+            join_sequence.run(self._stop, self._log)
+        except Exception as exc:
+            self._log(f"Error: {exc}")
+        remaining = rejoin_interval - (time.monotonic() - started)
+        if remaining > 0 and not self._stop.is_set():
+            shown = round(remaining, 1)
+            if shown == int(shown):
+                shown = int(shown)
+            if shown:
+                self._log(f"Waiting {shown} seconds before the next check.")
+            self._stop.wait(remaining)
 
     def _loop(self):
         try:

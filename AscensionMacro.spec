@@ -3,6 +3,21 @@ from PyInstaller.utils.hooks import collect_submodules
 
 hiddenimports = []
 hiddenimports += collect_submodules('keyboard')
+hiddenimports += [
+    'pyautogui',
+    'pyautogui._pyautogui_win',
+    'pyscreeze',
+    'pytweening',
+    'pymsgbox',
+    'PIL',
+    'PIL.Image',
+    'PIL.ImageGrab',
+    'win32gui',
+    'win32con',
+    'win32process',
+    'win32api',
+    'pywintypes',
+]
 
 
 a = Analysis(
