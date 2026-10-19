@@ -81,7 +81,6 @@ class MacroRunner:
             self._hotkeys.append(keyboard.add_hotkey("F1", self.debug_rejoin))
             self._hotkeys.append(keyboard.add_hotkey("F2", self.debug_presence))
             self._hotkeys.append(keyboard.add_hotkey("F3", self.debug_cursor))
-            self._hotkeys.append(keyboard.add_hotkey("F4", self.debug_click))
         self._hotkeys.append(keyboard.add_hotkey("F8", self.stop))
         self._hotkeys.append(keyboard.add_hotkey("F9", on_force_exit))
 
@@ -161,7 +160,7 @@ class MacroRunner:
         started = time.monotonic()
         subprocess.Popen([self._roblox_path, deeplink])
         try:
-            join_sequence.run(self._stop, self._log)
+            join_sequence.run(self._stop, self._log, settings["join_sequence"])
         except Exception as exc:
             self._log(f"Error: {exc}")
         remaining = rejoin_interval - (time.monotonic() - started)

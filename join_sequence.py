@@ -2,25 +2,11 @@ import time
 
 import input_control
 
-# Client-relative pixels. Fill in later, for example:
-# ("wait", 15)
-# ("click", 100, 200)
-# ("key", "e")
-# ("hotkey", "shift", "1")
-ON_JOIN_STEPS = [
-    ("wait", 5),
-    ("click", 2371, 72),
-    ("wait", 1),
-    ("click", 1780, 1008),
-    ("wait", 1),
-    ("click", 1710, 432),
-]
-
 WINDOW_TIMEOUT = 60
 POLL_INTERVAL = 0.5
 
 
-def run(stop_event, log):
+def run(stop_event, log, steps):
     log("Waiting for the Roblox window.")
     hwnd = _wait_for_window(stop_event)
     if stop_event.is_set():
@@ -32,7 +18,7 @@ def run(stop_event, log):
         log("Could not focus the Roblox window.")
     else:
         log("Roblox window focused.")
-    for step in ON_JOIN_STEPS:
+    for step in steps:
         if stop_event.is_set():
             return
         try:

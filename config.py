@@ -15,12 +15,15 @@ SCRIPT_DIR = app_dir()
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
 
+DEFAULT_JOIN_SEQUENCE = []
+
 CONFIG_KEYS = {
     "user_id": None,
     "private_server_url": None,
     "place_id": None,
     "check_interval": 5,
     "rejoin_interval": 120,
+    "join_sequence": [list(step) for step in DEFAULT_JOIN_SEQUENCE],
 }
 
 
@@ -43,6 +46,9 @@ def _read_raw():
 
     if not isinstance(data, dict):
         raise ValueError(f"{CONFIG_PATH} must contain a JSON object")
+
+    if "join_sequence" not in data:
+        data["join_sequence"] = [list(step) for step in DEFAULT_JOIN_SEQUENCE]
 
     missing = [key for key in CONFIG_KEYS if key not in data]
     if missing:
@@ -77,6 +83,55 @@ def _as_number(value, name):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"{name} in {CONFIG_PATH} must be a number")
     return value
+
+
+def _as_key(value, name):
+    if not isinstance(value, str) or not value.strip():
+        raise TypeError(f"{name} in {CONFIG_PATH} must be a non-empty string")
+    return value.strip()
+
+
+def parse_join_sequence(value):
+    if not isinstance(value, list):
+        raise TypeError(f"join_sequence in {CONFIG_PATH} must be a list")
+    steps = []
+    for index, step in enumerate(value):
+        name = f"join_sequence[{index}]"
+        if not isinstance(step, (list, tuple)) or not step:
+            raise TypeError(f"{name} in {CONFIG_PATH} must be a list")
+        kind = step[0]
+        if kind == "wait":
+            if len(step) != 2:
+                raise ValueError(f"{name} in {CONFIG_PATH} must be [wait, seconds]")
+            seconds = _as_number(step[1], f"{name} seconds")
+            if seconds < 0:
+                raise ValueError(f"{name} seconds must be 0 or greater")
+            steps.append(("wait", seconds))
+        elif kind == "click":
+            if len(step) != 3:
+                raise ValueError(f"{name} in {CONFIG_PATH} must be [click, x, y]")
+            steps.append(
+                (
+                    "click",
+                    _as_int(step[1], f"{name} x"),
+                    _as_int(step[2], f"{name} y"),
+                )
+            )
+        elif kind == "key":
+            if len(step) != 2:
+                raise ValueError(f"{name} in {CONFIG_PATH} must be [key, name]")
+            steps.append(("key", _as_key(step[1], f"{name} key")))
+        elif kind == "hotkey":
+            if len(step) < 2:
+                raise ValueError(f"{name} in {CONFIG_PATH} must include at least one key")
+            keys = [
+                _as_key(key, f"{name} key {offset}")
+                for offset, key in enumerate(step[1:], start=1)
+            ]
+            steps.append(("hotkey", *keys))
+        else:
+            raise ValueError(f"{name} in {CONFIG_PATH} has unknown action {kind!r}")
+    return steps
 
 
 def settings_for_run(data):
@@ -114,6 +169,7 @@ def settings_for_run(data):
         "place_id": place_id,
         "check_interval": check_interval,
         "rejoin_interval": rejoin_interval,
+        "join_sequence": parse_join_sequence(data.get("join_sequence")),
     }
 
 
