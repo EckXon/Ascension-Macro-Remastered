@@ -80,12 +80,15 @@ class MacroApp(tk.Tk):
         notebook.pack(fill="both", expand=True)
         self.notebook = notebook
 
+        def tab_width(text):
+            return str.center(text, 14)
+
         settings = ttk.Frame(notebook, padding=12)
         sequence = ttk.Frame(notebook, padding=12)
         self.log_tab = ttk.Frame(notebook, padding=12)
-        notebook.add(settings, text="Settings")
-        notebook.add(sequence, text="Join sequence")
-        notebook.add(self.log_tab, text="Log")
+        notebook.add(settings, text=tab_width("Settings"))
+        notebook.add(sequence, text=tab_width("Join sequence"))
+        notebook.add(self.log_tab, text=tab_width("Log"))
 
         fields = (
             ("User ID", self.user_id_var),
