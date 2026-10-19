@@ -10,32 +10,40 @@ import win32process
 pyautogui.PAUSE = 0
 pyautogui.FAILSAFE = False
 
-ROBLOX_CLASS = "WINDOWSCLIENT"
+ROBLOX_TITLE = "Roblox"
 ROBLOX_EXE = "robloxplayerbeta.exe"
 _PROCESS_ACCESS = win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ
 
 
-def find_roblox_window():
-    found = []
+def find_roblox_window(username):
+    named = []
+    defaults = []
 
     def callback(hwnd, _extra):
         try:
             if not win32gui.IsWindowVisible(hwnd):
                 return True
-            if win32gui.GetClassName(hwnd) != ROBLOX_CLASS:
-                return True
             _thread, pid = win32process.GetWindowThreadProcessId(hwnd)
             image = _process_image(pid)
-            if os.path.basename(image).lower() == ROBLOX_EXE:
-                found.append(hwnd)
+            if os.path.basename(image).lower() != ROBLOX_EXE:
+                return True
+            title = win32gui.GetWindowText(hwnd)
+            if title == username:
+                named.append(hwnd)
+            elif title == ROBLOX_TITLE:
+                defaults.append(hwnd)
         except Exception:
             return True
         return True
 
     win32gui.EnumWindows(callback, None)
-    if not found:
+    if named:
+        return named[0]
+    if not defaults:
         return None
-    return found[0]
+    hwnd = defaults[0]
+    win32gui.SetWindowText(hwnd, username)
+    return hwnd
 
 
 def focus_window(hwnd):
@@ -102,9 +110,11 @@ def wait(seconds, stop_event):
     stop_event.wait(seconds)
 
 
-def cursor_client_position(hwnd=None):
+def cursor_client_position(hwnd=None, username=None):
     if hwnd is None:
-        hwnd = find_roblox_window()
+        if not username:
+            return None
+        hwnd = find_roblox_window(username)
     if not hwnd:
         return None
     return win32gui.ScreenToClient(hwnd, win32api.GetCursorPos())

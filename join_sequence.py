@@ -6,9 +6,9 @@ WINDOW_TIMEOUT = 60
 POLL_INTERVAL = 0.5
 
 
-def run(stop_event, log, steps):
+def run(stop_event, log, steps, username):
     log("Waiting for the Roblox window.")
-    hwnd = _wait_for_window(stop_event)
+    hwnd = _wait_for_window(stop_event, username)
     if stop_event.is_set():
         return
     if hwnd is None:
@@ -28,10 +28,10 @@ def run(stop_event, log, steps):
             return
 
 
-def _wait_for_window(stop_event):
+def _wait_for_window(stop_event, username):
     deadline = time.monotonic() + WINDOW_TIMEOUT
     while not stop_event.is_set():
-        hwnd = input_control.find_roblox_window()
+        hwnd = input_control.find_roblox_window(username)
         if hwnd:
             return hwnd
         remaining = deadline - time.monotonic()

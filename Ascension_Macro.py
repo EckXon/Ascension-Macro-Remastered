@@ -51,6 +51,7 @@ class MacroRunner:
             if self.running():
                 return False
         settings = config.settings_for_run(data)
+        settings["username"] = self._fetch_username(settings["user_id"])
         roblox_path = config.find_roblox_player()
         with self._lock:
             if self.running():
@@ -114,8 +115,13 @@ class MacroRunner:
         self._log(f"Checked presence for user {user_id}: {presence}")
 
     def debug_cursor(self):
+        if not self._settings or "username" not in self._settings:
+            self._log("No macro settings yet. Start the macro before using F3.")
+            return
         try:
-            position = input_control.cursor_client_position()
+            position = input_control.cursor_client_position(
+                username=self._settings["username"]
+            )
         except Exception as exc:
             self._log(f"Error: {exc}")
             return
@@ -136,6 +142,16 @@ class MacroRunner:
         if self.debug:
             self._log(f"[DEBUG] Checked presence for user {user_id}: {info}")
         return info["userPresenceType"]
+
+    def _fetch_username(self, user_id):
+        response = requests.get(
+            f"https://users.roblox.com/v1/users/{user_id}", timeout=15
+        )
+        response.raise_for_status()
+        name = response.json().get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"No username for user {user_id}")
+        return name
 
     def _rejoin(self):
         settings = self._settings
@@ -160,7 +176,12 @@ class MacroRunner:
         started = time.monotonic()
         subprocess.Popen([self._roblox_path, deeplink])
         try:
-            join_sequence.run(self._stop, self._log, settings["join_sequence"])
+            join_sequence.run(
+                self._stop,
+                self._log,
+                settings["join_sequence"],
+                settings["username"],
+            )
         except Exception as exc:
             self._log(f"Error: {exc}")
         remaining = rejoin_interval - (time.monotonic() - started)
