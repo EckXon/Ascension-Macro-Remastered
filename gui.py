@@ -91,11 +91,11 @@ class MacroApp(tk.Tk):
         notebook.add(self.log_tab, text=tab_width("Log"))
 
         fields = (
-            ("User ID", self.user_id_var),
+            ("User ID*", self.user_id_var),
             ("Private server URL", self.private_server_url_var),
-            ("Place ID", self.place_id_var),
-            ("Check interval (seconds)", self.check_interval_var),
-            ("Rejoin interval (seconds)", self.rejoin_interval_var),
+            ("Place ID*", self.place_id_var),
+            ("Check interval* (seconds)", self.check_interval_var),
+            ("Rejoin interval* (seconds)", self.rejoin_interval_var),
         )
         for row, (label, variable) in enumerate(fields):
             ttk.Label(settings, text=label).grid(row=row, column=0, sticky="w", pady=4)
