@@ -1,6 +1,7 @@
 import time
 
 import input_control
+import input_sequence
 
 WINDOW_TIMEOUT = 60
 POLL_INTERVAL = 0.5
@@ -18,14 +19,13 @@ def run(stop_event, log, steps, username):
         log("Could not focus the Roblox window.")
     else:
         log("Roblox window focused.")
-    for step in steps:
-        if stop_event.is_set():
-            return
-        try:
-            _run_step(hwnd, step, stop_event)
-        except Exception as exc:
-            log(f"On-join step failed: {step}: {exc}")
-            return
+    input_sequence.run_steps(
+        hwnd,
+        steps,
+        stop_event,
+        log=log,
+        log_prefix="On-join step",
+    )
 
 
 def _wait_for_window(stop_event, username):
@@ -39,28 +39,3 @@ def _wait_for_window(stop_event, username):
             return None
         stop_event.wait(min(POLL_INTERVAL, remaining))
     return None
-
-
-def _run_step(hwnd, step, stop_event):
-    if not step:
-        raise ValueError(f"invalid step: {step!r}")
-    kind = step[0]
-    if kind == "wait":
-        if len(step) != 2:
-            raise ValueError(f"invalid step: {step!r}")
-        input_control.wait(step[1], stop_event)
-    elif kind == "click":
-        if len(step) not in (3, 4):
-            raise ValueError(f"invalid step: {step!r}")
-        duration = step[3] if len(step) == 4 else 0
-        input_control.client_click(hwnd, step[1], step[2], duration)
-    elif kind == "key":
-        if len(step) != 2:
-            raise ValueError(f"invalid step: {step!r}")
-        input_control.press_key(step[1])
-    elif kind == "hotkey":
-        if len(step) < 2:
-            raise ValueError(f"invalid step: {step!r}")
-        input_control.hotkey(*step[1:])
-    else:
-        raise ValueError(f"unknown step: {step!r}")

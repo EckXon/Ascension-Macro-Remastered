@@ -16,6 +16,7 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 EXAMPLE_CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.example.json")
 
 DEFAULT_JOIN_SEQUENCE = []
+DEFAULT_LOOP_SEQUENCE = []
 
 CONFIG_KEYS = {
     "user_id": None,
@@ -23,7 +24,9 @@ CONFIG_KEYS = {
     "place_id": None,
     "check_interval": 5,
     "rejoin_interval": 120,
+    "loop_sequence_interval": 60,
     "join_sequence": [list(step) for step in DEFAULT_JOIN_SEQUENCE],
+    "loop_sequence": [list(step) for step in DEFAULT_LOOP_SEQUENCE],
 }
 
 
@@ -49,6 +52,10 @@ def _read_raw():
 
     if "join_sequence" not in data:
         data["join_sequence"] = [list(step) for step in DEFAULT_JOIN_SEQUENCE]
+    if "loop_sequence" not in data:
+        data["loop_sequence"] = [list(step) for step in DEFAULT_LOOP_SEQUENCE]
+    if "loop_sequence_interval" not in data:
+        data["loop_sequence_interval"] = CONFIG_KEYS["loop_sequence_interval"]
 
     missing = [key for key in CONFIG_KEYS if key not in data]
     if missing:
@@ -91,12 +98,12 @@ def _as_key(value, name):
     return value.strip()
 
 
-def parse_join_sequence(value):
+def _parse_input_sequence(value, sequence_name):
     if not isinstance(value, list):
-        raise TypeError(f"join_sequence in {CONFIG_PATH} must be a list")
+        raise TypeError(f"{sequence_name} in {CONFIG_PATH} must be a list")
     steps = []
     for index, step in enumerate(value):
-        name = f"join_sequence[{index}]"
+        name = f"{sequence_name}[{index}]"
         if not isinstance(step, (list, tuple)) or not step:
             raise TypeError(f"{name} in {CONFIG_PATH} must be a list")
         kind = step[0]
@@ -141,6 +148,14 @@ def parse_join_sequence(value):
     return steps
 
 
+def parse_join_sequence(value):
+    return _parse_input_sequence(value, "join_sequence")
+
+
+def parse_loop_sequence(value):
+    return _parse_input_sequence(value, "loop_sequence")
+
+
 def settings_for_run(data):
     if not isinstance(data, dict):
         raise TypeError("config data must be a dict")
@@ -167,8 +182,13 @@ def settings_for_run(data):
 
     check_interval = _as_number(data.get("check_interval"), "check_interval")
     rejoin_interval = _as_number(data.get("rejoin_interval"), "rejoin_interval")
+    loop_sequence_interval = _as_number(
+        data.get("loop_sequence_interval"), "loop_sequence_interval"
+    )
     if check_interval <= 0 or rejoin_interval <= 0:
         raise ValueError("check_interval and rejoin_interval must be greater than 0")
+    if loop_sequence_interval <= 0:
+        raise ValueError("loop_sequence_interval must be greater than 0")
 
     return {
         "user_id": user_id,
@@ -176,7 +196,9 @@ def settings_for_run(data):
         "place_id": place_id,
         "check_interval": check_interval,
         "rejoin_interval": rejoin_interval,
+        "loop_sequence_interval": loop_sequence_interval,
         "join_sequence": parse_join_sequence(data.get("join_sequence")),
+        "loop_sequence": parse_loop_sequence(data.get("loop_sequence")),
     }
 
 

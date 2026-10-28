@@ -17,7 +17,8 @@ User ID - The numeric ID of the Roblox user being tracked. Can be obtained from 
 Private server URL - the URL link to a Roblox private server. The macro will automatically join this link every time it reconnects the user.
 Place ID - If no private URL is set, the macro uses this to determine which Roblox experience to connect to. Will join a random public server.
 Check interval - the time in seconds between each user presence check (checking if they are offline)
-Rejoin interval - the time in seconds
+Rejoin interval - the time in seconds to wait after launching Roblox (including join sequence time) before the next presence check
+Loop sequence interval - the time in seconds between each attempt to run the loop sequence
 
 # Join Sequence Tab
 
@@ -26,6 +27,16 @@ Wait X - Waits X seconds until the next action
 Click X Y [duration] - Clicks at coordinates X,Y within the active window (Roblox). Optional duration (seconds) moves the cursor to the target over that time; defaults to 0 (instant).
 Key K - Presses key K once
 Hotkey *K - Presses down the key sequence *K in order, then releases each key *K in reverse order
+
+# Loop Sequence Tab
+
+Configure inputs to repeat while the macro is running and the tracked user is in-game. Uses the same step types as Join Sequence (Wait, Click, Key, Hotkey).
+
+The macro waits the loop sequence interval between each attempt. A run happens only when all of the following are true:
+
+- The user is in-game (presence check)
+- Rejoin is not in progress (join sequence and rejoin interval have finished)
+- The Roblox window is the active foreground window (the macro does not focus Roblox for loop steps)
 
 # Log Tab
 

@@ -11,6 +11,7 @@ import requests
 import config
 import input_control
 import join_sequence
+import loop_sequence
 from gui import MacroApp
 
 
@@ -36,9 +37,13 @@ class MacroRunner:
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._thread = None
+        self._loop_sequence_thread = None
+        self._loop_sequence_lock = threading.Lock()
         self._settings = None
         self._roblox_path = None
         self._hotkeys = []
+        self._rejoin_in_progress = False
+        self._last_presence = None
 
     def set_log(self, callback):
         self._log = callback
@@ -58,13 +63,43 @@ class MacroRunner:
                 return False
             self._settings = settings
             self._roblox_path = roblox_path
+            self._rejoin_in_progress = False
+            self._last_presence = None
             self._stop.clear()
             self._thread = threading.Thread(
                 target=self._loop, name="macro", daemon=True
             )
+            self._loop_sequence_thread = threading.Thread(
+                target=self._loop_sequence_worker,
+                name="loop-sequence",
+                daemon=True,
+            )
             self._log("Macro started.")
             self._thread.start()
+            self._loop_sequence_thread.start()
             return True
+
+    def _get_settings(self):
+        with self._lock:
+            return self._settings
+
+    def _get_presence(self):
+        with self._lock:
+            return self._last_presence
+
+    def _is_rejoin_in_progress(self):
+        with self._lock:
+            return self._rejoin_in_progress
+
+    def _loop_sequence_worker(self):
+        loop_sequence.run(
+            self._stop,
+            self._log,
+            self._get_settings,
+            self._get_presence,
+            self._is_rejoin_in_progress,
+            self._loop_sequence_lock,
+        )
 
     def stop(self):
         with self._lock:
@@ -154,6 +189,15 @@ class MacroRunner:
         return name
 
     def _rejoin(self):
+        with self._lock:
+            self._rejoin_in_progress = True
+        try:
+            self._run_rejoin()
+        finally:
+            with self._lock:
+                self._rejoin_in_progress = False
+
+    def _run_rejoin(self):
         settings = self._settings
         private_server_url = settings["private_server_url"]
         place_id = settings["place_id"]
@@ -201,6 +245,8 @@ class MacroRunner:
                 check_interval = settings["check_interval"]
                 try:
                     presence = self._fetch_presence(user_id)
+                    with self._lock:
+                        self._last_presence = presence
                     self._log(f"Checked presence for user {user_id}: {presence}")
                     if presence != 2:
                         self._log(

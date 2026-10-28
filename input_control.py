@@ -110,6 +110,10 @@ def wait(seconds, stop_event):
     stop_event.wait(seconds)
 
 
+def is_roblox_foreground(hwnd):
+    return bool(hwnd) and win32gui.GetForegroundWindow() == hwnd
+
+
 def cursor_client_position(hwnd=None, username=None):
     if hwnd is None:
         if not username:

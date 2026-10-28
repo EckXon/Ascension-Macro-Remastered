@@ -47,8 +47,10 @@ class MacroApp(tk.Tk):
         self.title("Ascension Macro")
         self.geometry("960x640")
         self.minsize(960, 640)
-        self._steps = []
+        self._join_editor = None
+        self._loop_editor = None
         self._coord_picker_active = False
+        self._coord_pick_button = None
         self._coord_picker_username = None
         self._coord_tooltip = None
         self._coord_tooltip_label = None
@@ -60,6 +62,7 @@ class MacroApp(tk.Tk):
         self.place_id_var = tk.StringVar()
         self.check_interval_var = tk.StringVar()
         self.rejoin_interval_var = tk.StringVar()
+        self.loop_sequence_interval_var = tk.StringVar()
 
         self._build()
         self.runner.set_log(self.enqueue_log)
@@ -92,10 +95,12 @@ class MacroApp(tk.Tk):
             return str.center(text, 14)
 
         settings = ttk.Frame(notebook, padding=12)
-        sequence = ttk.Frame(notebook, padding=12)
+        join_tab = ttk.Frame(notebook, padding=12)
+        loop_tab = ttk.Frame(notebook, padding=12)
         self.log_tab = ttk.Frame(notebook, padding=12)
         notebook.add(settings, text=tab_width("Settings"))
-        notebook.add(sequence, text=tab_width("Join sequence"))
+        notebook.add(join_tab, text=tab_width("Join sequence"))
+        notebook.add(loop_tab, text=tab_width("Loop sequence"))
         notebook.add(self.log_tab, text=tab_width("Log"))
 
         fields = (
@@ -104,6 +109,7 @@ class MacroApp(tk.Tk):
             ("Place ID*", self.place_id_var),
             ("Check interval* (seconds)", self.check_interval_var),
             ("Rejoin interval* (seconds)", self.rejoin_interval_var),
+            ("Loop sequence interval* (seconds)", self.loop_sequence_interval_var),
         )
         for row, (label, variable) in enumerate(fields):
             ttk.Label(settings, text=label).grid(row=row, column=0, sticky="w", pady=4)
@@ -115,38 +121,21 @@ class MacroApp(tk.Tk):
             row=len(fields), column=1, sticky="e", pady=(12, 0)
         )
 
-        ttk.Label(
-            sequence,
-            text="Coordinates are pixels inside the Roblox window.",
-        ).pack(anchor="w")
-        body = ttk.Frame(sequence)
-        body.pack(fill="both", expand=True, pady=(8, 0))
-        scroll = ttk.Scrollbar(body, orient="vertical")
-        self.step_list = tk.Listbox(
-            body, activestyle="dotbox", yscrollcommand=scroll.set, exportselection=False
+        self._join_editor = SequenceEditor(
+            join_tab,
+            self,
+            parse_step=config.parse_join_sequence,
+            description="Runs once after each rejoin (join sequence and rejoin interval).",
         )
-        scroll.configure(command=self.step_list.yview)
-        self.step_list.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
-        step_buttons = ttk.Frame(sequence)
-        step_buttons.pack(fill="x", pady=(8, 0))
-        for label, command in (
-            ("Add", self.on_add_step),
-            ("Edit", self.on_edit_step),
-            ("Remove", self.on_remove_step),
-            ("Up", self.on_move_step_up),
-            ("Down", self.on_move_step_down),
-        ):
-            ttk.Button(step_buttons, text=label, command=command).pack(
-                side="left", padx=(0, 8)
-            )
-        self.coord_pick_button = ttk.Button(
-            step_buttons,
-            text="Show coordinates",
-            command=self.on_toggle_coord_tooltip,
+        self._loop_editor = SequenceEditor(
+            loop_tab,
+            self,
+            parse_step=config.parse_loop_sequence,
+            description=(
+                "Runs on loop sequence interval while in-game, rejoin is finished, "
+                "and Roblox is the active window."
+            ),
         )
-        self.coord_pick_button.pack(side="left", padx=(0, 8))
-        ttk.Button(step_buttons, text="Save", command=self.on_save).pack(side="right")
 
         self.log_text = scrolledtext.ScrolledText(
             self.log_tab, state="disabled", wrap="word"
@@ -168,13 +157,23 @@ class MacroApp(tk.Tk):
         self.place_id_var.set(_display(data["place_id"]))
         self.check_interval_var.set(_display(data["check_interval"]))
         self.rejoin_interval_var.set(_display(data["rejoin_interval"]))
+        self.loop_sequence_interval_var.set(_display(data["loop_sequence_interval"]))
         try:
-            self._steps = config.parse_join_sequence(data["join_sequence"])
+            self._join_editor.set_steps(
+                config.parse_join_sequence(data["join_sequence"])
+            )
         except (TypeError, ValueError) as exc:
-            self._steps = []
+            self._join_editor.set_steps([])
             self._append_log(f"Error: {exc}")
             self._show_log()
-        self._refresh_steps()
+        try:
+            self._loop_editor.set_steps(
+                config.parse_loop_sequence(data["loop_sequence"])
+            )
+        except (TypeError, ValueError) as exc:
+            self._loop_editor.set_steps([])
+            self._append_log(f"Error: {exc}")
+            self._show_log()
 
     def _form_data(self):
         return {
@@ -187,7 +186,11 @@ class MacroApp(tk.Tk):
             "rejoin_interval": _parse_number(
                 self.rejoin_interval_var.get(), "rejoin_interval"
             ),
-            "join_sequence": [list(step) for step in self._steps],
+            "loop_sequence_interval": _parse_number(
+                self.loop_sequence_interval_var.get(), "loop_sequence_interval"
+            ),
+            "join_sequence": [list(step) for step in self._join_editor.steps],
+            "loop_sequence": [list(step) for step in self._loop_editor.steps],
         }
 
     def on_save(self):
@@ -235,64 +238,6 @@ class MacroApp(tk.Tk):
     def _show_log(self):
         self.notebook.select(self.log_tab)
 
-    def _refresh_steps(self, select=None):
-        self.step_list.delete(0, "end")
-        for step in self._steps:
-            self.step_list.insert("end", _step_text(step))
-        if select is None or not self._steps:
-            return
-        index = max(0, min(select, len(self._steps) - 1))
-        self.step_list.selection_set(index)
-        self.step_list.activate(index)
-        self.step_list.see(index)
-
-    def _selected_step(self):
-        selected = self.step_list.curselection()
-        if not selected:
-            self._append_log("Select a step first.")
-            return None
-        return selected[0]
-
-    def on_add_step(self):
-        dialog = StepDialog(self)
-        if dialog.result is None:
-            return
-        self._steps.append(dialog.result)
-        self._refresh_steps(len(self._steps) - 1)
-
-    def on_edit_step(self):
-        index = self._selected_step()
-        if index is None:
-            return
-        dialog = StepDialog(self, self._steps[index])
-        if dialog.result is None:
-            return
-        self._steps[index] = dialog.result
-        self._refresh_steps(index)
-
-    def on_remove_step(self):
-        index = self._selected_step()
-        if index is None:
-            return
-        del self._steps[index]
-        self._refresh_steps(min(index, len(self._steps) - 1))
-
-    def on_move_step_up(self):
-        self._move_step(-1)
-
-    def on_move_step_down(self):
-        self._move_step(1)
-
-    def _move_step(self, offset):
-        index = self._selected_step()
-        if index is None:
-            return
-        target = index + offset
-        if target < 0 or target >= len(self._steps):
-            return
-        self._steps[index], self._steps[target] = self._steps[target], self._steps[index]
-        self._refresh_steps(target)
-
     def _resolve_roblox_username(self):
         settings = getattr(self.runner, "_settings", None)
         if settings and settings.get("username"):
@@ -305,21 +250,24 @@ class MacroApp(tk.Tk):
                 pass
         return input_control.ROBLOX_TITLE
 
-    def on_toggle_coord_tooltip(self):
+    def on_toggle_coord_tooltip(self, button):
         if self._coord_picker_active:
             self._stop_coord_picker()
         else:
-            self._start_coord_picker()
+            self._start_coord_picker(button)
 
-    def _start_coord_picker(self):
+    def _start_coord_picker(self, button):
         self._coord_picker_username = self._resolve_roblox_username()
         self._coord_picker_active = True
-        self.coord_pick_button.configure(text="Hide coordinates")
+        self._coord_pick_button = button
+        button.configure(text="Hide coordinates")
         self._update_coord_tooltip()
 
     def _stop_coord_picker(self):
         self._coord_picker_active = False
-        self.coord_pick_button.configure(text="Show coordinates")
+        if self._coord_pick_button is not None:
+            self._coord_pick_button.configure(text="Show coordinates")
+            self._coord_pick_button = None
         if self._coord_after_id is not None:
             self.after_cancel(self._coord_after_id)
             self._coord_after_id = None
@@ -447,6 +395,111 @@ _ACTION_LABELS = {
 _ACTIONS_BY_LABEL = {label: kind for kind, label in _ACTION_LABELS.items()}
 
 
+class SequenceEditor:
+    def __init__(self, parent, app, parse_step, description):
+        self.app = app
+        self.parse_step = parse_step
+        self.steps = []
+
+        ttk.Label(parent, text=description, wraplength=880).pack(anchor="w")
+        ttk.Label(
+            parent,
+            text="Coordinates are pixels inside the Roblox window.",
+        ).pack(anchor="w", pady=(4, 0))
+        body = ttk.Frame(parent)
+        body.pack(fill="both", expand=True, pady=(8, 0))
+        scroll = ttk.Scrollbar(body, orient="vertical")
+        self.step_list = tk.Listbox(
+            body, activestyle="dotbox", yscrollcommand=scroll.set, exportselection=False
+        )
+        scroll.configure(command=self.step_list.yview)
+        self.step_list.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        step_buttons = ttk.Frame(parent)
+        step_buttons.pack(fill="x", pady=(8, 0))
+        for label, command in (
+            ("Add", self.on_add_step),
+            ("Edit", self.on_edit_step),
+            ("Remove", self.on_remove_step),
+            ("Up", self.on_move_step_up),
+            ("Down", self.on_move_step_down),
+        ):
+            ttk.Button(step_buttons, text=label, command=command).pack(
+                side="left", padx=(0, 8)
+            )
+        coord_button = ttk.Button(
+            step_buttons,
+            text="Show coordinates",
+            command=lambda: app.on_toggle_coord_tooltip(coord_button),
+        )
+        coord_button.pack(side="left", padx=(0, 8))
+        ttk.Button(step_buttons, text="Save", command=app.on_save).pack(side="right")
+
+    def set_steps(self, steps):
+        self.steps = list(steps)
+        self.refresh()
+
+    def refresh(self, select=None):
+        self.step_list.delete(0, "end")
+        for step in self.steps:
+            self.step_list.insert("end", _step_text(step))
+        if select is None or not self.steps:
+            return
+        index = max(0, min(select, len(self.steps) - 1))
+        self.step_list.selection_set(index)
+        self.step_list.activate(index)
+        self.step_list.see(index)
+
+    def _selected_index(self):
+        selected = self.step_list.curselection()
+        if not selected:
+            self.app._append_log("Select a step first.")
+            return None
+        return selected[0]
+
+    def on_add_step(self):
+        dialog = StepDialog(self.app, parse_step=self.parse_step)
+        if dialog.result is None:
+            return
+        self.steps.append(dialog.result)
+        self.refresh(len(self.steps) - 1)
+
+    def on_edit_step(self):
+        index = self._selected_index()
+        if index is None:
+            return
+        dialog = StepDialog(
+            self.app, self.steps[index], parse_step=self.parse_step
+        )
+        if dialog.result is None:
+            return
+        self.steps[index] = dialog.result
+        self.refresh(index)
+
+    def on_remove_step(self):
+        index = self._selected_index()
+        if index is None:
+            return
+        del self.steps[index]
+        self.refresh(min(index, len(self.steps) - 1))
+
+    def on_move_step_up(self):
+        self._move_step(-1)
+
+    def on_move_step_down(self):
+        self._move_step(1)
+
+    def _move_step(self, offset):
+        index = self._selected_index()
+        if index is None:
+            return
+        target = index + offset
+        if target < 0 or target >= len(self.steps):
+            return
+        self.steps[index], self.steps[target] = self.steps[target], self.steps[index]
+        self.refresh(target)
+
+
 def _step_text(step):
     kind = step[0]
     if kind == "wait":
@@ -464,11 +517,12 @@ def _step_text(step):
 
 
 class StepDialog(tk.Toplevel):
-    def __init__(self, master, step=None):
+    def __init__(self, master, step=None, parse_step=config.parse_join_sequence):
         super().__init__(master)
         self.title("Edit step" if step else "Add step")
         self.resizable(False, False)
         self.result = None
+        self.parse_step = parse_step
         self.transient(master)
 
         kind = step[0] if step else "wait"
@@ -577,7 +631,7 @@ class StepDialog(tk.Toplevel):
                     if part.strip()
                 ]
                 step = ["hotkey", *keys]
-            self.result = config.parse_join_sequence([step])[0]
+            self.result = self.parse_step([step])[0]
         except (TypeError, ValueError) as exc:
             self.error_var.set(str(exc))
             return
