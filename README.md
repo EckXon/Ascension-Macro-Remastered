@@ -14,6 +14,7 @@ are not in-game, rejoins the provided server
 # Settings Tab
 
 User ID - The numeric ID of the Roblox user being tracked. Can be obtained from the url of the Roblox profile page for that user (www.roblox.com/users/???/profile).
+Display name - The title used for the Roblox client window (usually the tracked user's username). Leave empty to fetch the username from User ID automatically; Save or Start fills this field when it is empty.
 Private server URL - the URL link to a Roblox private server. The macro will automatically join this link every time it reconnects the user.
 Place ID - If no private URL is set, the macro uses this to determine which Roblox experience to connect to. Will join a random public server.
 Check interval - the time in seconds between each user presence check (checking if they are offline)

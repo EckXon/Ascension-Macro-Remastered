@@ -56,7 +56,7 @@ class MacroRunner:
             if self.running():
                 return False
         settings = config.settings_for_run(data)
-        settings["username"] = self._fetch_username(settings["user_id"])
+        settings["username"] = self._resolve_window_username(settings)
         roblox_path = config.find_roblox_player()
         with self._lock:
             if self.running():
@@ -177,6 +177,12 @@ class MacroRunner:
         if self.debug:
             self._log(f"[DEBUG] Checked presence for user {user_id}: {info}")
         return info["userPresenceType"]
+
+    def _resolve_window_username(self, settings):
+        display_name = settings.get("display_name")
+        if display_name:
+            return display_name
+        return self._fetch_username(settings["user_id"])
 
     def _fetch_username(self, user_id):
         response = requests.get(

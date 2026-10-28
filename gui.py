@@ -58,6 +58,7 @@ class MacroApp(tk.Tk):
 
         self.status_var = tk.StringVar(value="Stopped")
         self.user_id_var = tk.StringVar()
+        self.display_name_var = tk.StringVar()
         self.private_server_url_var = tk.StringVar()
         self.place_id_var = tk.StringVar()
         self.check_interval_var = tk.StringVar()
@@ -105,6 +106,7 @@ class MacroApp(tk.Tk):
 
         fields = (
             ("User ID*", self.user_id_var),
+            ("Display name", self.display_name_var),
             ("Private server URL", self.private_server_url_var),
             ("Place ID*", self.place_id_var),
             ("Check interval* (seconds)", self.check_interval_var),
@@ -153,6 +155,12 @@ class MacroApp(tk.Tk):
             self._show_log()
             return
         self.user_id_var.set(_display(data["user_id"]))
+        self.display_name_var.set(_display(data["display_name"]))
+        if not self.display_name_var.get().strip():
+            try:
+                self._fill_display_name_if_empty()
+            except (OSError, ValueError) as exc:
+                self._append_log(f"Error: could not resolve display name: {exc}")
         self.private_server_url_var.set(_display(data["private_server_url"]))
         self.place_id_var.set(_display(data["place_id"]))
         self.check_interval_var.set(_display(data["check_interval"]))
@@ -175,9 +183,24 @@ class MacroApp(tk.Tk):
             self._append_log(f"Error: {exc}")
             self._show_log()
 
+    def _parse_display_name(self):
+        text = self.display_name_var.get().strip()
+        return text or None
+
+    def _fill_display_name_if_empty(self):
+        if self.display_name_var.get().strip():
+            return self.display_name_var.get().strip()
+        user_id = _parse_optional_int(self.user_id_var.get(), "user_id")
+        if user_id is None:
+            return None
+        name = self.runner._fetch_username(user_id)
+        self.display_name_var.set(name)
+        return name
+
     def _form_data(self):
         return {
             "user_id": _parse_optional_int(self.user_id_var.get(), "user_id"),
+            "display_name": self._parse_display_name(),
             "private_server_url": self.private_server_url_var.get().strip() or None,
             "place_id": _parse_optional_int(self.place_id_var.get(), "place_id"),
             "check_interval": _parse_number(
@@ -195,6 +218,7 @@ class MacroApp(tk.Tk):
 
     def on_save(self):
         try:
+            self._fill_display_name_if_empty()
             data = self._form_data()
             config.write_config(data)
         except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -205,8 +229,9 @@ class MacroApp(tk.Tk):
 
     def on_start(self):
         try:
+            self._fill_display_name_if_empty()
             data = self._form_data()
-        except ValueError as exc:
+        except (OSError, ValueError) as exc:
             self._append_log(f"Error: {exc}")
             self._show_log()
             return
@@ -239,15 +264,18 @@ class MacroApp(tk.Tk):
         self.notebook.select(self.log_tab)
 
     def _resolve_roblox_username(self):
+        display_name = self.display_name_var.get().strip()
+        if display_name:
+            return display_name
         settings = getattr(self.runner, "_settings", None)
         if settings and settings.get("username"):
             return settings["username"]
-        user_id = _parse_optional_int(self.user_id_var.get(), "user_id")
-        if user_id is not None:
-            try:
-                return self.runner._fetch_username(user_id)
-            except Exception:
-                pass
+        try:
+            filled = self._fill_display_name_if_empty()
+            if filled:
+                return filled
+        except (OSError, ValueError):
+            pass
         return input_control.ROBLOX_TITLE
 
     def on_toggle_coord_tooltip(self, button):
@@ -402,10 +430,18 @@ class SequenceEditor:
         self.steps = []
 
         ttk.Label(parent, text=description, wraplength=880).pack(anchor="w")
+        coord_row = ttk.Frame(parent)
+        coord_row.pack(fill="x", pady=(4, 0))
         ttk.Label(
-            parent,
+            coord_row,
             text="Coordinates are pixels inside the Roblox window.",
-        ).pack(anchor="w", pady=(4, 0))
+        ).pack(side="left")
+        coord_button = ttk.Button(
+            coord_row,
+            text="Show coordinates",
+            command=lambda: app.on_toggle_coord_tooltip(coord_button),
+        )
+        coord_button.pack(side="right")
         body = ttk.Frame(parent)
         body.pack(fill="both", expand=True, pady=(8, 0))
         scroll = ttk.Scrollbar(body, orient="vertical")
@@ -427,12 +463,6 @@ class SequenceEditor:
             ttk.Button(step_buttons, text=label, command=command).pack(
                 side="left", padx=(0, 8)
             )
-        coord_button = ttk.Button(
-            step_buttons,
-            text="Show coordinates",
-            command=lambda: app.on_toggle_coord_tooltip(coord_button),
-        )
-        coord_button.pack(side="left", padx=(0, 8))
         ttk.Button(step_buttons, text="Save", command=app.on_save).pack(side="right")
 
     def set_steps(self, steps):

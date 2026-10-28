@@ -20,6 +20,7 @@ DEFAULT_LOOP_SEQUENCE = []
 
 CONFIG_KEYS = {
     "user_id": None,
+    "display_name": None,
     "private_server_url": None,
     "place_id": None,
     "check_interval": 5,
@@ -56,6 +57,8 @@ def _read_raw():
         data["loop_sequence"] = [list(step) for step in DEFAULT_LOOP_SEQUENCE]
     if "loop_sequence_interval" not in data:
         data["loop_sequence_interval"] = CONFIG_KEYS["loop_sequence_interval"]
+    if "display_name" not in data:
+        data["display_name"] = CONFIG_KEYS["display_name"]
 
     missing = [key for key in CONFIG_KEYS if key not in data]
     if missing:
@@ -180,6 +183,12 @@ def settings_for_run(data):
     if not private_server_url and not place_id:
         raise ValueError("Set PRIVATE_SERVER_URL or PLACE_ID")
 
+    display_name = data.get("display_name")
+    if display_name is not None and not isinstance(display_name, str):
+        raise TypeError(f"display_name in {CONFIG_PATH} must be a string or null")
+    if isinstance(display_name, str):
+        display_name = display_name.strip() or None
+
     check_interval = _as_number(data.get("check_interval"), "check_interval")
     rejoin_interval = _as_number(data.get("rejoin_interval"), "rejoin_interval")
     loop_sequence_interval = _as_number(
@@ -192,6 +201,7 @@ def settings_for_run(data):
 
     return {
         "user_id": user_id,
+        "display_name": display_name,
         "private_server_url": private_server_url,
         "place_id": place_id,
         "check_interval": check_interval,
