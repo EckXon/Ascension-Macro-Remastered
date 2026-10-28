@@ -23,7 +23,7 @@ Rejoin interval - the time in seconds
 
 Configure a custom input sequence to perform upon joining a game. Includes Wait, Click, Key, and Hotkey operations.
 Wait X - Waits X seconds until the next action
-Click X Y - Clicks at coordinates X,Y within the active window (Roblox)
+Click X Y [duration] - Clicks at coordinates X,Y within the active window (Roblox). Optional duration (seconds) moves the cursor to the target over that time; defaults to 0 (instant).
 Key K - Presses key K once
 Hotkey *K - Presses down the key sequence *K in order, then releases each key *K in reverse order
 

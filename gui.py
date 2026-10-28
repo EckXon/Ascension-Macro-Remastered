@@ -3,7 +3,10 @@ import time
 import tkinter as tk
 from tkinter import scrolledtext, ttk
 
+import win32api
+
 import config
+import input_control
 
 
 def _display(value):
@@ -45,6 +48,11 @@ class MacroApp(tk.Tk):
         self.geometry("960x640")
         self.minsize(960, 640)
         self._steps = []
+        self._coord_picker_active = False
+        self._coord_picker_username = None
+        self._coord_tooltip = None
+        self._coord_tooltip_label = None
+        self._coord_after_id = None
 
         self.status_var = tk.StringVar(value="Stopped")
         self.user_id_var = tk.StringVar()
@@ -132,6 +140,12 @@ class MacroApp(tk.Tk):
             ttk.Button(step_buttons, text=label, command=command).pack(
                 side="left", padx=(0, 8)
             )
+        self.coord_pick_button = ttk.Button(
+            step_buttons,
+            text="Show coordinates",
+            command=self.on_toggle_coord_tooltip,
+        )
+        self.coord_pick_button.pack(side="left", padx=(0, 8))
         ttk.Button(step_buttons, text="Save", command=self.on_save).pack(side="right")
 
         self.log_text = scrolledtext.ScrolledText(
@@ -279,7 +293,89 @@ class MacroApp(tk.Tk):
         self._steps[index], self._steps[target] = self._steps[target], self._steps[index]
         self._refresh_steps(target)
 
+    def _resolve_roblox_username(self):
+        settings = getattr(self.runner, "_settings", None)
+        if settings and settings.get("username"):
+            return settings["username"]
+        user_id = _parse_optional_int(self.user_id_var.get(), "user_id")
+        if user_id is not None:
+            try:
+                return self.runner._fetch_username(user_id)
+            except Exception:
+                pass
+        return input_control.ROBLOX_TITLE
+
+    def on_toggle_coord_tooltip(self):
+        if self._coord_picker_active:
+            self._stop_coord_picker()
+        else:
+            self._start_coord_picker()
+
+    def _start_coord_picker(self):
+        self._coord_picker_username = self._resolve_roblox_username()
+        self._coord_picker_active = True
+        self.coord_pick_button.configure(text="Hide coordinates")
+        self._update_coord_tooltip()
+
+    def _stop_coord_picker(self):
+        self._coord_picker_active = False
+        self.coord_pick_button.configure(text="Show coordinates")
+        if self._coord_after_id is not None:
+            self.after_cancel(self._coord_after_id)
+            self._coord_after_id = None
+        self._destroy_coord_tooltip()
+
+    def _destroy_coord_tooltip(self):
+        if self._coord_tooltip is not None:
+            self._coord_tooltip.destroy()
+            self._coord_tooltip = None
+            self._coord_tooltip_label = None
+
+    def _show_coord_tooltip(self, text, x, y):
+        if self._coord_tooltip is None:
+            tooltip = tk.Toplevel(self)
+            tooltip.wm_overrideredirect(True)
+            tooltip.attributes("-topmost", True)
+            frame = tk.Frame(
+                tooltip,
+                background="#ffffe0",
+                highlightbackground="#000000",
+                highlightthickness=1,
+            )
+            frame.pack()
+            self._coord_tooltip_label = tk.Label(
+                frame,
+                text=text,
+                background="#ffffe0",
+                padx=6,
+                pady=4,
+            )
+            self._coord_tooltip_label.pack()
+            self._coord_tooltip = tooltip
+        else:
+            self._coord_tooltip_label.configure(text=text)
+        self._coord_tooltip.wm_geometry(f"+{x}+{y}")
+
+    def _update_coord_tooltip(self):
+        if not self._coord_picker_active or self._closing:
+            return
+        try:
+            position = input_control.cursor_client_position(
+                username=self._coord_picker_username
+            )
+        except Exception:
+            position = None
+        if position is None:
+            text = "Roblox window not found"
+        else:
+            x, y = position
+            text = f"X: {x}, Y: {y}"
+        screen_x, screen_y = win32api.GetCursorPos()
+        self._show_coord_tooltip(text, screen_x + 16, screen_y + 16)
+        self._coord_after_id = self.after(50, self._update_coord_tooltip)
+
     def on_close(self):
+        self._stop_coord_picker()
         if self.runner.running():
             self.runner.stop()
         self._closing = True
@@ -356,7 +452,10 @@ def _step_text(step):
     if kind == "wait":
         return f"Wait {step[1]}"
     if kind == "click":
-        return f"Click {step[1]}, {step[2]}"
+        text = f"Click {step[1]}, {step[2]}"
+        if len(step) > 3:
+            text += f" ({step[3]}s)"
+        return text
     if kind == "key":
         return f"Key {step[1]}"
     if kind == "hotkey":
@@ -382,6 +481,11 @@ class StepDialog(tk.Toplevel):
         )
         self.y_var = tk.StringVar(
             value=_display(step[2]) if step and kind == "click" else ""
+        )
+        self.click_duration_var = tk.StringVar(
+            value=_display(step[3])
+            if step and kind == "click" and len(step) > 3
+            else ""
         )
         self.key_var = tk.StringVar(value=step[1] if step and kind == "key" else "")
         self.hotkey_var = tk.StringVar(
@@ -426,7 +530,11 @@ class StepDialog(tk.Toplevel):
         if kind == "wait":
             rows = (("Seconds", self.seconds_var),)
         elif kind == "click":
-            rows = (("X", self.x_var), ("Y", self.y_var))
+            rows = (
+                ("X", self.x_var),
+                ("Y", self.y_var),
+                ("Duration (seconds)", self.click_duration_var),
+            )
         elif kind == "key":
             rows = (("Key", self.key_var),)
         else:
@@ -451,7 +559,15 @@ class StepDialog(tk.Toplevel):
                 y = _parse_optional_int(self.y_var.get(), "y")
                 if x is None or y is None:
                     raise ValueError("x and y are required")
+                duration_text = self.click_duration_var.get().strip()
+                duration = 0
+                if duration_text:
+                    duration = _parse_number(duration_text, "duration")
+                    if duration < 0:
+                        raise ValueError("duration must be 0 or greater")
                 step = ["click", x, y]
+                if duration:
+                    step.append(duration)
             elif kind == "key":
                 step = ["key", self.key_var.get()]
             else:

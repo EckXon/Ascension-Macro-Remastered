@@ -108,15 +108,22 @@ def parse_join_sequence(value):
                 raise ValueError(f"{name} seconds must be 0 or greater")
             steps.append(("wait", seconds))
         elif kind == "click":
-            if len(step) != 3:
-                raise ValueError(f"{name} in {CONFIG_PATH} must be [click, x, y]")
-            steps.append(
-                (
-                    "click",
-                    _as_int(step[1], f"{name} x"),
-                    _as_int(step[2], f"{name} y"),
+            if len(step) not in (3, 4):
+                raise ValueError(
+                    f"{name} in {CONFIG_PATH} must be [click, x, y] or "
+                    f"[click, x, y, duration]"
                 )
-            )
+            x = _as_int(step[1], f"{name} x")
+            y = _as_int(step[2], f"{name} y")
+            duration = 0
+            if len(step) == 4:
+                duration = _as_number(step[3], f"{name} duration")
+                if duration < 0:
+                    raise ValueError(f"{name} duration must be 0 or greater")
+            if duration:
+                steps.append(("click", x, y, duration))
+            else:
+                steps.append(("click", x, y))
         elif kind == "key":
             if len(step) != 2:
                 raise ValueError(f"{name} in {CONFIG_PATH} must be [key, name]")

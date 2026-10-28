@@ -92,7 +92,7 @@ def _move_with_events(x, y, duration):
             time.sleep(duration / steps)
 
 
-def client_click(hwnd, x, y, duration=0.5):
+def client_click(hwnd, x, y, duration=0):
     screen_x, screen_y = win32gui.ClientToScreen(hwnd, (int(x), int(y)))
     _move_with_events(screen_x, screen_y, duration)
     pyautogui.click()
