@@ -33,10 +33,10 @@ Hotkey *K - Presses down the key sequence *K in order, then releases each key *K
 
 Configure inputs to repeat while the macro is running and the tracked user is in-game. Uses the same step types as Join Sequence (Wait, Click, Key, Hotkey).
 
-The macro waits the loop sequence interval between each attempt. A run happens only when all of the following are true:
+Presence checks and loop sequence share one loop, each on its own timer. A run happens only when all of the following are true:
 
 - The user is in-game (presence check)
-- Rejoin is not in progress (join sequence and rejoin interval have finished)
+- Rejoin has finished (join sequence and rejoin interval)
 - The Roblox window is the active foreground window (the macro does not focus Roblox for loop steps)
 
 # Log Tab
