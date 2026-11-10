@@ -63,7 +63,9 @@ class MacroApp(tk.Tk):
         self.place_id_var = tk.StringVar()
         self.check_interval_var = tk.StringVar()
         self.rejoin_interval_var = tk.StringVar()
+        self.join_sequence_enabled_var = tk.BooleanVar(value=True)
         self.loop_sequence_interval_var = tk.StringVar()
+        self.loop_sequence_enabled_var = tk.BooleanVar(value=True)
 
         self._build()
         self.runner.set_log(self.enqueue_log)
@@ -105,18 +107,31 @@ class MacroApp(tk.Tk):
         notebook.add(self.log_tab, text=tab_width("Log"))
 
         fields = (
-            ("User ID*", self.user_id_var),
-            ("Display name", self.display_name_var),
-            ("Private server URL", self.private_server_url_var),
-            ("Place ID*", self.place_id_var),
-            ("Check interval* (seconds)", self.check_interval_var),
-            ("Rejoin interval* (seconds)", self.rejoin_interval_var),
-            ("Loop sequence interval* (seconds)", self.loop_sequence_interval_var),
+            ("User ID*", self.user_id_var, None),
+            ("Display name", self.display_name_var, None),
+            ("Private server URL", self.private_server_url_var, None),
+            ("Place ID*", self.place_id_var, None),
+            ("Check interval* (seconds)", self.check_interval_var, None),
+            (
+                "Rejoin interval* (seconds)",
+                self.rejoin_interval_var,
+                ("Join sequence", self.join_sequence_enabled_var),
+            ),
+            (
+                "Loop sequence interval* (seconds)",
+                self.loop_sequence_interval_var,
+                ("Loop sequence", self.loop_sequence_enabled_var),
+            ),
         )
-        for row, (label, variable) in enumerate(fields):
+        for row, (label, variable, toggle) in enumerate(fields):
             ttk.Label(settings, text=label).grid(row=row, column=0, sticky="w", pady=4)
             entry = ttk.Entry(settings, textvariable=variable)
             entry.grid(row=row, column=1, sticky="ew", padx=(12, 0), pady=4)
+            if toggle:
+                toggle_text, toggle_var = toggle
+                ttk.Checkbutton(
+                    settings, text=toggle_text, variable=toggle_var
+                ).grid(row=row, column=2, sticky="w", padx=(12, 0), pady=4)
         settings.columnconfigure(1, weight=1)
 
         ttk.Button(settings, text="Save", command=self.on_save).grid(
@@ -165,7 +180,9 @@ class MacroApp(tk.Tk):
         self.place_id_var.set(_display(data["place_id"]))
         self.check_interval_var.set(_display(data["check_interval"]))
         self.rejoin_interval_var.set(_display(data["rejoin_interval"]))
+        self.join_sequence_enabled_var.set(bool(data["join_sequence_enabled"]))
         self.loop_sequence_interval_var.set(_display(data["loop_sequence_interval"]))
+        self.loop_sequence_enabled_var.set(bool(data["loop_sequence_enabled"]))
         try:
             self._join_editor.set_steps(
                 config.parse_join_sequence(data["join_sequence"])
@@ -209,9 +226,11 @@ class MacroApp(tk.Tk):
             "rejoin_interval": _parse_number(
                 self.rejoin_interval_var.get(), "rejoin_interval"
             ),
+            "join_sequence_enabled": bool(self.join_sequence_enabled_var.get()),
             "loop_sequence_interval": _parse_number(
                 self.loop_sequence_interval_var.get(), "loop_sequence_interval"
             ),
+            "loop_sequence_enabled": bool(self.loop_sequence_enabled_var.get()),
             "join_sequence": [list(step) for step in self._join_editor.steps],
             "loop_sequence": [list(step) for step in self._loop_editor.steps],
         }

@@ -25,7 +25,9 @@ CONFIG_KEYS = {
     "place_id": None,
     "check_interval": 5,
     "rejoin_interval": 120,
+    "join_sequence_enabled": True,
     "loop_sequence_interval": 60,
+    "loop_sequence_enabled": True,
     "join_sequence": [list(step) for step in DEFAULT_JOIN_SEQUENCE],
     "loop_sequence": [list(step) for step in DEFAULT_LOOP_SEQUENCE],
 }
@@ -57,6 +59,10 @@ def _read_raw():
         data["loop_sequence"] = [list(step) for step in DEFAULT_LOOP_SEQUENCE]
     if "loop_sequence_interval" not in data:
         data["loop_sequence_interval"] = CONFIG_KEYS["loop_sequence_interval"]
+    if "join_sequence_enabled" not in data:
+        data["join_sequence_enabled"] = CONFIG_KEYS["join_sequence_enabled"]
+    if "loop_sequence_enabled" not in data:
+        data["loop_sequence_enabled"] = CONFIG_KEYS["loop_sequence_enabled"]
     if "display_name" not in data:
         data["display_name"] = CONFIG_KEYS["display_name"]
 
@@ -92,6 +98,12 @@ def _as_int(value, name):
 def _as_number(value, name):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"{name} in {CONFIG_PATH} must be a number")
+    return value
+
+
+def _as_bool(value, name):
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} in {CONFIG_PATH} must be a boolean")
     return value
 
 
@@ -194,6 +206,12 @@ def settings_for_run(data):
     loop_sequence_interval = _as_number(
         data.get("loop_sequence_interval"), "loop_sequence_interval"
     )
+    join_sequence_enabled = _as_bool(
+        data.get("join_sequence_enabled"), "join_sequence_enabled"
+    )
+    loop_sequence_enabled = _as_bool(
+        data.get("loop_sequence_enabled"), "loop_sequence_enabled"
+    )
     if check_interval <= 0 or rejoin_interval <= 0:
         raise ValueError("check_interval and rejoin_interval must be greater than 0")
     if loop_sequence_interval <= 0:
@@ -206,7 +224,9 @@ def settings_for_run(data):
         "place_id": place_id,
         "check_interval": check_interval,
         "rejoin_interval": rejoin_interval,
+        "join_sequence_enabled": join_sequence_enabled,
         "loop_sequence_interval": loop_sequence_interval,
+        "loop_sequence_enabled": loop_sequence_enabled,
         "join_sequence": parse_join_sequence(data.get("join_sequence")),
         "loop_sequence": parse_loop_sequence(data.get("loop_sequence")),
     }

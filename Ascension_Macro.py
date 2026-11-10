@@ -165,15 +165,16 @@ class MacroRunner:
         self._log(f"Launching Roblox: {deeplink}")
         started = time.monotonic()
         subprocess.Popen([self._roblox_path, deeplink])
-        try:
-            join_sequence.run(
-                self._stop,
-                self._log,
-                settings["join_sequence"],
-                settings["username"],
-            )
-        except Exception as exc:
-            self._log(f"Error: {exc}")
+        if settings["join_sequence_enabled"]:
+            try:
+                join_sequence.run(
+                    self._stop,
+                    self._log,
+                    settings["join_sequence"],
+                    settings["username"],
+                )
+            except Exception as exc:
+                self._log(f"Error: {exc}")
         remaining = rejoin_interval - (time.monotonic() - started)
         if remaining > 0 and not self._stop.is_set():
             shown = round(remaining, 1)
@@ -188,7 +189,10 @@ class MacroRunner:
             presence = None
             now = time.monotonic()
             next_presence = now
-            next_loop_sequence = now + self._settings["loop_sequence_interval"]
+            loop_enabled = self._settings["loop_sequence_enabled"]
+            next_loop_sequence = (
+                now + self._settings["loop_sequence_interval"] if loop_enabled else None
+            )
             while not self._stop.is_set():
                 settings = self._settings
                 now = time.monotonic()
@@ -205,22 +209,26 @@ class MacroRunner:
                     except Exception as exc:
                         self._log(f"Error: {exc}")
                     next_presence = time.monotonic() + settings["check_interval"]
-                now = time.monotonic()
-                if now >= next_loop_sequence:
-                    loop_sequence.run(
-                        self._stop,
-                        self._log,
-                        settings["loop_sequence"],
-                        settings["username"],
-                        presence,
-                    )
-                    next_loop_sequence = (
-                        time.monotonic() + settings["loop_sequence_interval"]
-                    )
+                if next_loop_sequence is not None:
+                    now = time.monotonic()
+                    if now >= next_loop_sequence:
+                        loop_sequence.run(
+                            self._stop,
+                            self._log,
+                            settings["loop_sequence"],
+                            settings["username"],
+                            presence,
+                        )
+                        next_loop_sequence = (
+                            time.monotonic() + settings["loop_sequence_interval"]
+                        )
                 if self._stop.is_set():
                     break
                 now = time.monotonic()
-                delay = min(next_presence, next_loop_sequence) - now
+                delay_until = next_presence
+                if next_loop_sequence is not None:
+                    delay_until = min(delay_until, next_loop_sequence)
+                delay = delay_until - now
                 if delay > 0:
                     self._stop.wait(delay)
         finally:

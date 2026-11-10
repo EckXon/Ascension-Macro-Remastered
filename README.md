@@ -18,8 +18,8 @@ Display name - The title used for the Roblox client window (usually the tracked 
 Private server URL - the URL link to a Roblox private server. The macro will automatically join this link every time it reconnects the user.
 Place ID - If no private URL is set, the macro uses this to determine which Roblox experience to connect to. Will join a random public server.
 Check interval - the time in seconds between each user presence check (checking if they are offline)
-Rejoin interval - the time in seconds to wait after launching Roblox (including join sequence time) before the next presence check
-Loop sequence interval - the time in seconds between each attempt to run the loop sequence
+Rejoin interval - the time in seconds to wait after launching Roblox (including join sequence time) before the next presence check. The Join sequence checkbox on this row enables or disables the on-join input sequence.
+Loop sequence interval - the time in seconds between each attempt to run the loop sequence. The Loop sequence checkbox on this row enables or disables the repeating in-game sequence.
 
 # Join Sequence Tab
 
