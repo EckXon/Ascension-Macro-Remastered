@@ -18,25 +18,12 @@ _PROCESS_ACCESS = win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ
 def find_roblox_window(username):
     named = []
     defaults = []
-
-    def callback(hwnd, _extra):
-        try:
-            if not win32gui.IsWindowVisible(hwnd):
-                return True
-            _thread, pid = win32process.GetWindowThreadProcessId(hwnd)
-            image = _process_image(pid)
-            if os.path.basename(image).lower() != ROBLOX_EXE:
-                return True
-            title = win32gui.GetWindowText(hwnd)
-            if title == username:
-                named.append(hwnd)
-            elif title == ROBLOX_TITLE:
-                defaults.append(hwnd)
-        except Exception:
-            return True
-        return True
-
-    win32gui.EnumWindows(callback, None)
+    for hwnd in _roblox_hwnds():
+        title = win32gui.GetWindowText(hwnd)
+        if title == username:
+            named.append(hwnd)
+        elif title == ROBLOX_TITLE:
+            defaults.append(hwnd)
     if named:
         return named[0]
     if not defaults:
@@ -44,6 +31,36 @@ def find_roblox_window(username):
     hwnd = defaults[0]
     win32gui.SetWindowText(hwnd, username)
     return hwnd
+
+
+def rename_roblox_window(username):
+    hwnd = find_roblox_window(username)
+    if hwnd is None:
+        hwnds = _roblox_hwnds()
+        if not hwnds:
+            return None
+        hwnd = hwnds[0]
+    win32gui.SetWindowText(hwnd, username)
+    return hwnd
+
+
+def _roblox_hwnds():
+    found = []
+
+    def callback(hwnd, _extra):
+        try:
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            _thread, pid = win32process.GetWindowThreadProcessId(hwnd)
+            image = _process_image(pid)
+            if os.path.basename(image).lower() == ROBLOX_EXE:
+                found.append(hwnd)
+        except Exception:
+            return True
+        return True
+
+    win32gui.EnumWindows(callback, None)
+    return found
 
 
 def focus_window(hwnd):

@@ -80,9 +80,16 @@ class MacroRunner:
         if self.debug:
             self._log("Debug mode enabled")
             self._log("Setting up debug hotkeys...")
+            self._log(
+                "F1 rejoin, F2 presence, F3 focus window, F4 rename window, "
+                "F5 join sequence, F6 loop sequence"
+            )
             self._hotkeys.append(keyboard.add_hotkey("F1", self.debug_rejoin))
             self._hotkeys.append(keyboard.add_hotkey("F2", self.debug_presence))
-            self._hotkeys.append(keyboard.add_hotkey("F3", self.debug_cursor))
+            self._hotkeys.append(keyboard.add_hotkey("F3", self.debug_focus))
+            self._hotkeys.append(keyboard.add_hotkey("F4", self.debug_rename))
+            self._hotkeys.append(keyboard.add_hotkey("F5", self.debug_join_sequence))
+            self._hotkeys.append(keyboard.add_hotkey("F6", self.debug_loop_sequence))
         self._hotkeys.append(keyboard.add_hotkey("F8", self.stop))
         self._hotkeys.append(keyboard.add_hotkey("F9", on_force_exit))
 
@@ -114,6 +121,70 @@ class MacroRunner:
             self._log(f"Error: {exc}")
             return
         self._log(f"Checked presence for user {user_id}: {presence}")
+
+    def debug_focus(self):
+        if not self._settings:
+            self._log("No macro settings yet. Start the macro before using F3.")
+            return
+        hwnd = input_control.find_roblox_window(self._settings["username"])
+        if not hwnd:
+            self._log("Roblox window was not found.")
+            return
+        if input_control.focus_window(hwnd):
+            self._log("Roblox window focused.")
+        else:
+            self._log("Could not focus the Roblox window.")
+
+    def debug_rename(self):
+        if not self._settings:
+            self._log("No macro settings yet. Start the macro before using F4.")
+            return
+        username = self._settings["username"]
+        hwnd = input_control.rename_roblox_window(username)
+        if not hwnd:
+            self._log("Roblox window was not found.")
+            return
+        self._log(f"Renamed Roblox window to {username}.")
+
+    def debug_join_sequence(self):
+        if not self._settings:
+            self._log("No macro settings yet. Start the macro before using F5.")
+            return
+        try:
+            join_sequence.run(
+                self._stop,
+                self._log,
+                self._settings["join_sequence"],
+                self._settings["username"],
+            )
+        except Exception as exc:
+            self._log(f"Error: {exc}")
+
+    def debug_loop_sequence(self):
+        if not self._settings:
+            self._log("No macro settings yet. Start the macro before using F6.")
+            return
+        settings = self._settings
+        if not settings["loop_sequence"]:
+            self._log("Loop sequence is empty.")
+            return
+        hwnd = input_control.find_roblox_window(settings["username"])
+        if not hwnd:
+            self._log("Roblox window was not found.")
+            return
+        if not input_control.focus_window(hwnd):
+            self._log("Could not focus the Roblox window.")
+            return
+        try:
+            loop_sequence.run(
+                self._stop,
+                self._log,
+                settings["loop_sequence"],
+                settings["username"],
+                loop_sequence.PRESENCE_IN_GAME,
+            )
+        except Exception as exc:
+            self._log(f"Error: {exc}")
 
     def _fetch_presence(self, user_id):
         url = "https://presence.roblox.com/v1/presence/users"

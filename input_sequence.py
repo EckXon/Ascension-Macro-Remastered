@@ -12,7 +12,7 @@ def run_step(hwnd, step, stop_event):
     elif kind == "click":
         if len(step) not in (3, 4):
             raise ValueError(f"invalid step: {step!r}")
-        duration = step[3] if len(step) == 4 else 0
+        duration = step[3] if len(step) == 4 else 0.5
         input_control.client_click(hwnd, step[1], step[2], duration)
     elif kind == "key":
         if len(step) != 2:
