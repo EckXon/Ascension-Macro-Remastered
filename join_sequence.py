@@ -2,6 +2,7 @@ import time
 
 import input_control
 import input_sequence
+from gui.log_view import MODE_WARN
 
 WINDOW_TIMEOUT = 60
 POLL_INTERVAL = 0.5
@@ -13,10 +14,10 @@ def run(stop_event, log, steps, username):
     if stop_event.is_set():
         return
     if hwnd is None:
-        log("Roblox window was not found. Skipping on-join steps.")
+        log("Roblox window was not found. Skipping on-join steps.", MODE_WARN)
         return
     if not input_control.focus_window(hwnd):
-        log("Could not focus the Roblox window.")
+        log("Could not focus the Roblox window.", MODE_WARN)
     else:
         log("Roblox window focused.")
     input_sequence.run_steps(

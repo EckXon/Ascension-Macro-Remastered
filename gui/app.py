@@ -6,7 +6,7 @@ import config
 import input_control
 from gui.coord_picker import CoordinatePicker
 from gui.fields import parse_optional_int
-from gui.log_view import LogView
+from gui.log_view import MODE_ERROR, MODE_SYSTEM, MODE_USER, LogView
 from gui.sequence_editor import SequenceEditor
 from gui.settings_form import SettingsForm
 
@@ -33,7 +33,7 @@ class MacroApp(tk.Tk):
         try:
             self.runner.register_hotkeys(self.request_quit)
         except Exception as exc:
-            self._append_log(f"Error: could not register hotkeys: {exc}")
+            self._append_log(f"Error: could not register hotkeys: {exc}", MODE_ERROR)
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.after(100, self._drain_log)
@@ -92,7 +92,7 @@ class MacroApp(tk.Tk):
         try:
             data = config.read_config()
         except (OSError, ValueError, KeyError, TypeError) as exc:
-            self._append_log(f"Error: could not load settings: {exc}")
+            self._append_log(f"Error: could not load settings: {exc}", MODE_ERROR)
             self._show_log()
             return
         self.settings.load(data)
@@ -100,18 +100,18 @@ class MacroApp(tk.Tk):
             try:
                 self._fill_display_name_if_empty()
             except (OSError, ValueError) as exc:
-                self._append_log(f"Error: could not resolve display name: {exc}")
+                self._append_log(f"Error: could not resolve display name: {exc}", MODE_ERROR)
         try:
             self.join_editor.set_steps(config.parse_join_sequence(data["join_sequence"]))
         except (TypeError, ValueError) as exc:
             self.join_editor.set_steps([])
-            self._append_log(f"Error: {exc}")
+            self._append_log(f"Error: {exc}", MODE_ERROR)
             self._show_log()
         try:
             self.loop_editor.set_steps(config.parse_loop_sequence(data["loop_sequence"]))
         except (TypeError, ValueError) as exc:
             self.loop_editor.set_steps([])
-            self._append_log(f"Error: {exc}")
+            self._append_log(f"Error: {exc}", MODE_ERROR)
             self._show_log()
 
     def _fill_display_name_if_empty(self):
@@ -136,30 +136,30 @@ class MacroApp(tk.Tk):
             data = self._form_data()
             config.write_config(data)
         except (OSError, ValueError, KeyError, TypeError) as exc:
-            self._append_log(f"Error: {exc}")
+            self._append_log(f"Error: {exc}", MODE_ERROR)
             self._show_log()
             return
-        self._append_log("Settings saved.")
+        self._append_log("Settings saved.", MODE_USER)
 
     def on_start(self):
         try:
             self._fill_display_name_if_empty()
             data = self._form_data()
         except (OSError, ValueError) as exc:
-            self._append_log(f"Error: {exc}")
+            self._append_log(f"Error: {exc}", MODE_ERROR)
             self._show_log()
             return
         try:
             config.write_config(data)
         except (OSError, KeyError, TypeError) as exc:
-            self._append_log(f"Error: could not save settings: {exc}")
+            self._append_log(f"Error: could not save settings: {exc}", MODE_ERROR)
             self._show_log()
             return
-        self._append_log("Settings saved.")
+        self._append_log("Settings saved.", MODE_USER)
         try:
             started = self.runner.start(data)
         except (OSError, ValueError, TypeError, KeyError) as exc:
-            self._append_log(f"Error: {exc}")
+            self._append_log(f"Error: {exc}", MODE_ERROR)
             self._show_log()
             return
         if started:
@@ -201,8 +201,8 @@ class MacroApp(tk.Tk):
     def notify_stopped(self):
         self.log_queue.put(("status", "Stopped"))
 
-    def enqueue_log(self, message):
-        self.log_queue.put(("log", message))
+    def enqueue_log(self, message, mode=MODE_SYSTEM):
+        self.log_queue.put(("log", (message, mode)))
 
     def _set_running(self, running):
         self.status_var.set("Running" if running else "Stopped")
@@ -213,8 +213,8 @@ class MacroApp(tk.Tk):
             self.start_button.state(["!disabled"])
             self.stop_button.state(["disabled"])
 
-    def _append_log(self, message):
-        self.log_view.append(message)
+    def _append_log(self, message, mode=MODE_SYSTEM):
+        self.log_view.append(message, mode)
 
     def _drain_log(self):
         if self._closing:
@@ -223,11 +223,12 @@ class MacroApp(tk.Tk):
             while True:
                 kind, payload = self.log_queue.get_nowait()
                 if kind == "log":
-                    self._append_log(payload)
+                    message, mode = payload
+                    self._append_log(message, mode)
                 elif kind == "status" and payload == "Stopped":
                     self._set_running(False)
                 elif kind == "quit":
-                    self._append_log(payload)
+                    self._append_log(payload, MODE_USER)
                     if self.runner.running():
                         self.runner.stop()
                     self._closing = True

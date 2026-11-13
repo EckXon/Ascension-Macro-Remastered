@@ -1,4 +1,5 @@
 import input_control
+from gui.log_view import MODE_ERROR
 
 
 def run_step(hwnd, step, stop_event):
@@ -34,6 +35,6 @@ def run_steps(hwnd, steps, stop_event, log=None, log_prefix="Step"):
             run_step(hwnd, step, stop_event)
         except Exception as exc:
             if log is not None:
-                log(f"{log_prefix} failed: {step}: {exc}")
+                log(f"{log_prefix} failed: {step}: {exc}", MODE_ERROR)
             return False
     return True

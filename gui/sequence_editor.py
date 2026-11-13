@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from gui.fields import step_text
+from gui.log_view import MODE_WARN
 from gui.step_dialog import StepDialog
 
 
@@ -67,7 +68,7 @@ class SequenceEditor:
     def _selected_index(self):
         selected = self.step_list.curselection()
         if not selected:
-            self.on_log("Select a step first.")
+            self.on_log("Select a step first.", MODE_WARN)
             return None
         return selected[0]
 

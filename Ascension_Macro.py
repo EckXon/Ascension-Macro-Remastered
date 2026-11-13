@@ -12,6 +12,7 @@ import loop_sequence
 import rejoin
 import roblox_api
 from gui import MacroApp
+from gui.log_view import MODE_ERROR, MODE_SYSTEM, MODE_USER, MODE_WARN
 
 
 def _frozen_excepthook(exc_type, exc, tb):
@@ -32,7 +33,7 @@ class MacroRunner:
     def __init__(self, debug=False):
         self.debug = debug
         self.on_stopped = None
-        self._log = lambda message: None
+        self._log = lambda message, mode=MODE_SYSTEM: None
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._thread = None
@@ -62,17 +63,17 @@ class MacroRunner:
             self._thread = threading.Thread(
                 target=self._loop, name="macro", daemon=True
             )
-            self._log("Macro started.")
+            self._log("Macro started.", MODE_USER)
             self._thread.start()
             return True
 
     def stop(self):
         with self._lock:
             if not self.running():
-                self._log("Macro is not running.")
+                self._log("Macro is not running.", MODE_WARN)
                 return
             self._stop.set()
-        self._log("Stopping macro...")
+        self._log("Stopping macro...", MODE_USER)
 
     def register_hotkeys(self, on_force_exit):
         self.unregister_hotkeys()
@@ -102,52 +103,52 @@ class MacroRunner:
 
     def debug_rejoin(self):
         if not self._settings or not self._roblox_path:
-            self._log("No macro settings yet. Start the macro before using F1.")
+            self._log("No macro settings yet. Start the macro before using F1.", MODE_WARN)
             return
         try:
             self._rejoin()
         except Exception as exc:
-            self._log(f"Error: {exc}")
+            self._log(f"Error: {exc}", MODE_ERROR)
 
     def debug_presence(self):
         if not self._settings:
-            self._log("No macro settings yet. Start the macro before using F2.")
+            self._log("No macro settings yet. Start the macro before using F2.", MODE_WARN)
             return
         user_id = self._settings["user_id"]
         try:
             presence = self._fetch_presence(user_id)
         except Exception as exc:
-            self._log(f"Error: {exc}")
+            self._log(f"Error: {exc}", MODE_ERROR)
             return
-        self._log(f"Checked presence for user {user_id}: {presence}")
+        self._log(f"Checked presence for user {user_id}: {presence}", MODE_USER)
 
     def debug_focus(self):
         if not self._settings:
-            self._log("No macro settings yet. Start the macro before using F3.")
+            self._log("No macro settings yet. Start the macro before using F3.", MODE_WARN)
             return
         hwnd = input_control.find_roblox_window(self._settings["username"])
         if not hwnd:
-            self._log("Roblox window was not found.")
+            self._log("Roblox window was not found.", MODE_WARN)
             return
         if input_control.focus_window(hwnd):
-            self._log("Roblox window focused.")
+            self._log("Roblox window focused.", MODE_USER)
         else:
-            self._log("Could not focus the Roblox window.")
+            self._log("Could not focus the Roblox window.", MODE_WARN)
 
     def debug_rename(self):
         if not self._settings:
-            self._log("No macro settings yet. Start the macro before using F4.")
+            self._log("No macro settings yet. Start the macro before using F4.", MODE_WARN)
             return
         username = self._settings["username"]
         hwnd = input_control.rename_roblox_window(username)
         if not hwnd:
-            self._log("Roblox window was not found.")
+            self._log("Roblox window was not found.", MODE_WARN)
             return
-        self._log(f"Renamed Roblox window to {username}.")
+        self._log(f"Renamed Roblox window to {username}.", MODE_USER)
 
     def debug_join_sequence(self):
         if not self._settings:
-            self._log("No macro settings yet. Start the macro before using F5.")
+            self._log("No macro settings yet. Start the macro before using F5.", MODE_WARN)
             return
         try:
             join_sequence.run(
@@ -157,22 +158,22 @@ class MacroRunner:
                 self._settings["username"],
             )
         except Exception as exc:
-            self._log(f"Error: {exc}")
+            self._log(f"Error: {exc}", MODE_ERROR)
 
     def debug_loop_sequence(self):
         if not self._settings:
-            self._log("No macro settings yet. Start the macro before using F6.")
+            self._log("No macro settings yet. Start the macro before using F6.", MODE_WARN)
             return
         settings = self._settings
         if not settings["loop_sequence"]:
-            self._log("Loop sequence is empty.")
+            self._log("Loop sequence is empty.", MODE_WARN)
             return
         hwnd = input_control.find_roblox_window(settings["username"])
         if not hwnd:
-            self._log("Roblox window was not found.")
+            self._log("Roblox window was not found.", MODE_WARN)
             return
         if not input_control.focus_window(hwnd):
-            self._log("Could not focus the Roblox window.")
+            self._log("Could not focus the Roblox window.", MODE_WARN)
             return
         try:
             loop_sequence.run(
@@ -183,7 +184,7 @@ class MacroRunner:
                 loop_sequence.PRESENCE_IN_GAME,
             )
         except Exception as exc:
-            self._log(f"Error: {exc}")
+            self._log(f"Error: {exc}", MODE_ERROR)
 
     def _fetch_presence(self, user_id):
         return roblox_api.fetch_presence(user_id, self._log, debug=self.debug)
@@ -219,11 +220,12 @@ class MacroRunner:
                         self._log(f"Checked presence for user {user_id}: {presence}")
                         if presence != 2:
                             self._log(
-                                f"User {user_id} is offline. Attempting to rejoin server..."
+                                f"User {user_id} is offline. Attempting to rejoin server...",
+                                MODE_WARN,
                             )
                             self._rejoin()
                     except Exception as exc:
-                        self._log(f"Error: {exc}")
+                        self._log(f"Error: {exc}", MODE_ERROR)
                     next_presence = time.monotonic() + settings["check_interval"]
                 if next_loop_sequence is not None:
                     now = time.monotonic()

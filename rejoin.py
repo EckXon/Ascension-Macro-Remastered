@@ -3,6 +3,7 @@ import time
 from urllib.parse import parse_qs, urlparse
 
 import join_sequence
+from gui.log_view import MODE_ERROR
 
 
 def build_deeplink(private_server_url, place_id):
@@ -33,7 +34,7 @@ def rejoin(settings, roblox_path, stop_event, log):
                 settings["username"],
             )
         except Exception as exc:
-            log(f"Error: {exc}")
+            log(f"Error: {exc}", MODE_ERROR)
     remaining = settings["rejoin_interval"] - (time.monotonic() - started)
     if remaining > 0 and not stop_event.is_set():
         shown = round(remaining, 1)
