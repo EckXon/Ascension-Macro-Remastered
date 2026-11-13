@@ -9,9 +9,6 @@ hiddenimports += [
     'pyscreeze',
     'pytweening',
     'pymsgbox',
-    'PIL',
-    'PIL.Image',
-    'PIL.ImageGrab',
     'win32gui',
     'win32con',
     'win32process',
@@ -29,7 +26,11 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'PIL',
+        'PIL.Image',
+        'PIL.ImageGrab',
+    ],
     noarchive=False,
     optimize=0,
 )
