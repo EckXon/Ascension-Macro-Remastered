@@ -1,17 +1,16 @@
 import argparse
-import subprocess
 import sys
 import threading
 import time
-from urllib.parse import parse_qs, urlparse
 
 import keyboard
-import requests
 
 import config
 import input_control
 import join_sequence
 import loop_sequence
+import rejoin
+import roblox_api
 from gui import MacroApp
 
 
@@ -187,16 +186,7 @@ class MacroRunner:
             self._log(f"Error: {exc}")
 
     def _fetch_presence(self, user_id):
-        url = "https://presence.roblox.com/v1/presence/users"
-        headers = {"Content-Type": "application/json"}
-        data = {"userIds": [user_id]}
-
-        response = requests.post(url, json=data, headers=headers)
-        response.raise_for_status()
-        info = response.json()["userPresences"][0]
-        if self.debug:
-            self._log(f"[DEBUG] Checked presence for user {user_id}: {info}")
-        return info["userPresenceType"]
+        return roblox_api.fetch_presence(user_id, self._log, debug=self.debug)
 
     def _resolve_window_username(self, settings):
         display_name = settings.get("display_name")
@@ -205,55 +195,10 @@ class MacroRunner:
         return self._fetch_username(settings["user_id"])
 
     def _fetch_username(self, user_id):
-        response = requests.get(
-            f"https://users.roblox.com/v1/users/{user_id}", timeout=15
-        )
-        response.raise_for_status()
-        name = response.json().get("name")
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"No username for user {user_id}")
-        return name
+        return roblox_api.fetch_username(user_id)
 
     def _rejoin(self):
-        settings = self._settings
-        private_server_url = settings["private_server_url"]
-        place_id = settings["place_id"]
-        rejoin_interval = settings["rejoin_interval"]
-
-        if private_server_url:
-            query = parse_qs(urlparse(private_server_url).query)
-            code = query.get("code", [None])[0]
-            if not code:
-                raise ValueError(
-                    f"No share code in private server URL: {private_server_url}"
-                )
-            deeplink = f"roblox://navigation/share_links?code={code}&type=Server"
-        elif place_id:
-            deeplink = f"roblox://experiences/start?placeId={place_id}"
-        else:
-            raise ValueError("Set PRIVATE_SERVER_URL or PLACE_ID")
-
-        self._log(f"Launching Roblox: {deeplink}")
-        started = time.monotonic()
-        subprocess.Popen([self._roblox_path, deeplink])
-        if settings["join_sequence_enabled"]:
-            try:
-                join_sequence.run(
-                    self._stop,
-                    self._log,
-                    settings["join_sequence"],
-                    settings["username"],
-                )
-            except Exception as exc:
-                self._log(f"Error: {exc}")
-        remaining = rejoin_interval - (time.monotonic() - started)
-        if remaining > 0 and not self._stop.is_set():
-            shown = round(remaining, 1)
-            if shown == int(shown):
-                shown = int(shown)
-            if shown:
-                self._log(f"Waiting {shown} seconds before the next check.")
-            self._stop.wait(remaining)
+        rejoin.rejoin(self._settings, self._roblox_path, self._stop, self._log)
 
     def _loop(self):
         try:
